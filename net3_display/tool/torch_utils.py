@@ -73,18 +73,37 @@ def convert2cpu_long(gpu_matrix):
 
 
 
-def do_detect(model, mid_result, img, conf_thresh, nms_thresh, use_cuda=1):
+def do_detect(model, img, conf_thresh, nms_thresh, use_cuda=1):
     model.eval()
+    t0 = time.time()
 
-    y1, x10, x18=(mid_result[0]),(mid_result[1]),mid_result[2]
-    y1=(torch.from_numpy(y1[0]).cuda(),torch.from_numpy(y1[1]).cuda())
-    x10=torch.from_numpy(x10).cuda()
-    y2=model.head.yolo3(x10)
-    x18=torch.from_numpy(x18).cuda()
-    y3=model.head.yolo3(x18)
+    if type(img) == np.ndarray and len(img.shape) == 3:  # cv2 image
+        img = torch.from_numpy(img.transpose(2, 0, 1)).float().div(255.0).unsqueeze(0)
+    elif type(img) == np.ndarray and len(img.shape) == 4:
+        img = torch.from_numpy(img.transpose(0, 3, 1, 2)).float().div(255.0)
+    else:
+        print("unknow image type")
+        exit(-1)
 
-    # output = model(img)
-    output=get_region_boxes([y1, y2, y3])
+    if use_cuda:
+        img = img.cuda()
+    img = torch.autograd.Variable(img)
+
+    t1 = time.time()
+
+    # with torch.autograd.profiler.profile(use_cuda=True) as prof:
+    #     output = model(img)
+    # print(prof.key_averages().table(sort_by="self_cpu_time_total"))
+
+    output = model(img)
+    # torch.cuda.synchronize()
+
+    t2 = time.time()
+
+    print('-----------------------------------')
+    print('           Preprocess : %f' % (t1 - t0))
+    print('      Model Inference : %f' % (t2 - t1))
+    print('-----------------------------------')
 
     return utils.post_processing(img, conf_thresh, nms_thresh, output)
 

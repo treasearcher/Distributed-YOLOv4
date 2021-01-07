@@ -6,7 +6,7 @@ from tool.yolo_layer import YoloLayer
 from tool.utils import load_class_names, plot_boxes_cv2
 from tool.torch_utils import do_detect
 from socket import *
-# import cv2
+import cv2
 
 
 class Mish(torch.nn.Module):
@@ -466,46 +466,46 @@ def recv_into(arr, source):
         view = view[nrecv:]
 
 
-import sys
-import tty
-import termios
-import _thread
+# import sys
+# import tty
+# import termios
+# import _thread
 
-def readchar():
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(sys.stdin.fileno())
-        ch = sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    return ch
-
-
-def readkey(getchar_fn=None):
-    getchar = getchar_fn or readchar
-    c1 = getchar()
-    if ord(c1) != 0x1b:
-        return c1
-    c2 = getchar()
-    if ord(c2) != 0x5b:
-        return c1
-    c3 = getchar()
-    return chr(0x10 + ord(c3) - 65)
+# def readchar():
+#     fd = sys.stdin.fileno()
+#     old_settings = termios.tcgetattr(fd)
+#     try:
+#         tty.setraw(sys.stdin.fileno())
+#         ch = sys.stdin.read(1)
+#     finally:
+#         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+#     return ch
+#
+#
+# def readkey(getchar_fn=None):
+#     getchar = getchar_fn or readchar
+#     c1 = getchar()
+#     if ord(c1) != 0x1b:
+#         return c1
+#     c2 = getchar()
+#     if ord(c2) != 0x5b:
+#         return c1
+#     c3 = getchar()
+#     return chr(0x10 + ord(c3) - 65)
 
 
 FLAG = True
-def key_check(c,c1,c2,s):
-    global FLAG
-    while FLAG:
-        key=readkey()
-        if key == 'q':
-            global FLAG
-            FLAG=False
-            c.close()
-            c1.close()
-            c2.close()
-            s.close()
+# def key_check(c,c1,c2,s):
+#     global FLAG
+#     while FLAG:
+#         key=readkey()
+#         if key == 'q':
+#             global FLAG
+#             FLAG=False
+#             c.close()
+#             c1.close()
+#             c2.close()
+#             s.close()
 
 
 if __name__ == "__main__":
@@ -537,24 +537,36 @@ if __name__ == "__main__":
     c_2.connect(('localhost', 25000))
     namesfile = 'data/coco.names'
     class_names = load_class_names(namesfile)
-    _thread.start_new_thread(key_check, (c, c1, c_2, s))
+    # _thread.start_new_thread(key_check, (c, c1, c_2, s))
     while (1):
         # y1, y2, x18 = do_detect(model, sized, 0.4, 0.6, use_cuda)
-        img = np.zeros(shape=(480,640,3))
+        img = np.zeros(shape=(480,640,3), dtype=np.uint8)
         recv_into(img, c_2)
-        y11 = np.zeros(shape=(1,17328,1,4))
+        y11 = np.zeros(shape=(1,17328,1,4), dtype=np.float32)
         recv_into(y11,c)
-        y12 = np.zeros(shape=(1,17328,80))
+        y12 = np.zeros(shape=(1,17328,80), dtype=np.float32)
         recv_into(y12,c)
-        x10=np.zeros(shape=(1,255,38,38))
+        x10=np.zeros(shape=(1,255,38,38), dtype=np.float32)
         recv_into(x10,c)
-        x18=np.zeros(shape=(1, 255, 19, 19))
+        x18=np.zeros(shape=(1, 255, 19, 19), dtype=np.float32)
         recv_into(x18,c)
         boxes = do_detect(model, [(y11,y12),x10,x18], img, 0.4, 0.6, use_cuda)
-        send_from(img, c1)
-        send_from(boxes,c1)
-        # class_names = load_class_names(namesfile)
-        # plot_boxes_cv2(img[0], boxes[0], 'predictions.jpg', class_names)
-    # c1.close()
+        # boxes = np.array(boxes, dtype=np.uint8)
+        # send_from(img, c1)
+        # send_from(boxes,c1)
+        class_names = load_class_names(namesfile)
+        frame = plot_boxes_cv2(img, boxes[0], 'predictions.jpg', class_names)
+        # cv2.imshow("capture", img)
+        # print(frame)
+        send_from(frame, c1)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+        # print(img)
+
+    cv2.destroyAllWindows()
+    c.close()
+    c_2.close()
+    c1.close()
+    s.close()
 
 

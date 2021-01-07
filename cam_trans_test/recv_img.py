@@ -2,6 +2,8 @@ import cv2
 import json
 from socket import *
 # import socket
+import numpy as np
+import time
 
 def send_from(arr, dest):
     view = memoryview(arr).cast('B')
@@ -15,30 +17,16 @@ def recv_into(arr, source):
         nrecv = source.recv_into(view)
         view = view[nrecv:]
 
-
-s = socket(AF_INET, SOCK_STREAM)
-s.bind(('', 25000))
-s.listen(2)
-c,a = s.accept()
-print(1)
-c_2,a_2=s.accept()
-print(2)
-# c_3,a_3=s.accept()
-cap = cv2.VideoCapture(0)
-flag = cap.isOpened()
-print(flag)
-while (1):
-    # get a frame
-    _, frame = cap.read()
-
-    send_from(frame, c)
-    send_from(frame, c_2)
-    # send_from(frame, c_3)
+c = socket(AF_INET, SOCK_STREAM)
+c.connect(('localhost', 25000))
+img = np.zeros(shape=(480, 640, 3), dtype=np.uint8)
+while(1):
+    recv_into(img, c)  ######################################################################
+    # print(img)
+    cv2.imshow('111', img)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-cap.release()
 cv2.destroyAllWindows()
+
 c.close()
-c_2.close()
-s.close()

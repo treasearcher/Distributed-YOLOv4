@@ -96,7 +96,7 @@ def nms_cpu(boxes, confs, nms_thresh=0.5, min_mode=False):
 
 
 
-def plot_boxes_cv2(img, boxes, savename=None, class_names=None, color=None):
+def plot_boxes_cv2(img, boxes, fps, class_names=None, color=None):
     import cv2
     img = np.copy(img)
     colors = np.array([[1, 0, 1], [0, 0, 1], [0, 1, 1], [0, 1, 0], [1, 1, 0], [1, 0, 0]], dtype=np.float32)
@@ -135,9 +135,7 @@ def plot_boxes_cv2(img, boxes, savename=None, class_names=None, color=None):
                 rgb = (red, green, blue)
             img = cv2.putText(img, class_names[cls_id], (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1.2, rgb, 1)
         img = cv2.rectangle(img, (x1, y1), (x2, y2), rgb, 1)
-    if savename:
-        print("save plot results to %s" % savename)
-        cv2.imwrite(savename, img)
+    img = cv2.putText(img, 'FPS: {}'.format(fps), (10,10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,0), 2)
     return img
 
 
@@ -223,5 +221,11 @@ def post_processing(img, conf_thresh, nms_thresh, output):
         bboxes_batch.append(bboxes)
 
     t3 = time.time()
+
+    print('-----------------------------------')
+    print('       max and argmax : %f' % (t2 - t1))
+    print('                  nms : %f' % (t3 - t2))
+    print('Post processing total : %f' % (t3 - t1))
+    print('-----------------------------------')
     
     return bboxes_batch

@@ -504,43 +504,43 @@ def recv_into(arr, source):
         view = view[nrecv:]
 
 
-import sys
-import tty
-import termios
-
-def readchar():
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(sys.stdin.fileno())
-        ch = sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    return ch
-
-def readkey(getchar_fn=None):
-    getchar = getchar_fn or readchar
-    c1 = getchar()
-    if ord(c1) != 0x1b:
-        return c1
-    c2 = getchar()
-    if ord(c2) != 0x5b:
-        return c1
-    c3 = getchar()
-    return chr(0x10 + ord(c3) - 65)
+# import sys
+# import tty
+# import termios
+#
+# def readchar():
+#     fd = sys.stdin.fileno()
+#     old_settings = termios.tcgetattr(fd)
+#     try:
+#         tty.setraw(sys.stdin.fileno())
+#         ch = sys.stdin.read(1)
+#     finally:
+#         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+#     return ch
+#
+# def readkey(getchar_fn=None):
+#     getchar = getchar_fn or readchar
+#     c1 = getchar()
+#     if ord(c1) != 0x1b:
+#         return c1
+#     c2 = getchar()
+#     if ord(c2) != 0x5b:
+#         return c1
+#     c3 = getchar()
+#     return chr(0x10 + ord(c3) - 65)
 
 
 FLAG = True
-def key_check(c,c1,s):
-    global FLAG
-    while FLAG:
-        key=readkey()
-        if key == 'q':
-            global FLAG
-            FLAG=False
-            c.close()
-            c1.close()
-            s.close()
+# def key_check(c,c1,s):
+#     global FLAG
+#     while FLAG:
+#         key=readkey()
+#         if key == 'q':
+#             # global FLAG
+#             FLAG=False
+#             c.close()
+#             c1.close()
+#             s.close()
 
 
 if __name__ == "__main__":
@@ -573,19 +573,21 @@ if __name__ == "__main__":
     c.connect(('localhost', 25000))
 
 
-    _thread.start_new_thread(key_check,(c,c1,s))
+    # _thread.start_new_thread(key_check,(c,c1,s))
 
     while(FLAG):
-        img=np.zeros(shape=(480,640,3),dtype=float)
+        img=np.zeros(shape=(480,640,3),dtype=np.uint8)
         recv_into(img, c)######################################################################
+        # print(img.shape)
+        cv2.imshow("11", img)
         sized = cv2.resize(img, (width, height))
         sized = cv2.cvtColor(sized, cv2.COLOR_BGR2RGB)
         y1, x10, x18 = do_detect(model, sized, 0.4, 0.6, use_cuda)
 
-        y1[0], y1[1], x10, x18 = y1[0].cpu().numpy(), y1[1].cpu().numpy(), x10.cpu().numpy(), x18.cpu().numpy()
+        y11, y12, x10, x18 = y1[0].detach().cpu().numpy(), y1[1].detach().cpu().numpy(), x10.detach().cpu().numpy(), x18.detach().cpu().numpy()
         # c1.send('y1'.encode())
-        send_from(y1[0], c1)
-        send_from(y1[1], c1)
+        send_from(y11, c1)
+        send_from(y12, c1)
         # c1.send('y2'.encode())
         send_from(x10, c1)
         # c1.send('x18'.encode())
