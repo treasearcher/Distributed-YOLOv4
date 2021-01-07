@@ -89,16 +89,24 @@ def do_detect(model, img, conf_thresh, nms_thresh, use_cuda=1):
         img = img.cuda()
     img = torch.autograd.Variable(img)
     
-    t1 = time.time()
+    # t1 = time.time()
 
-    output = model(img)
+    # output = model(img)
+    d1 = model.down1(img)
+    d2 = model.down2(d1)
+    d3 = model.down3(d2)
+    d4 = model.down4(d3)
+    d5 = model.down5(d4)
+    x20, x13, x6 = model.neek(d5, d4, d3)
+    # output = model.head(x20, x13, x6)
+    y1, x10, x18 = model.head.before_yolo1(x20, x13, x6)
+    # t2 = time.time()
+    #
+    # print('-----------------------------------')
+    # print('           Preprocess : %f' % (t1 - t0))
+    # print('      Model Inference : %f' % (t2 - t1))
+    # print('-----------------------------------')
 
-    t2 = time.time()
-
-    print('-----------------------------------')
-    print('           Preprocess : %f' % (t1 - t0))
-    print('      Model Inference : %f' % (t2 - t1))
-    print('-----------------------------------')
-
-    return utils.post_processing(img, conf_thresh, nms_thresh, output)
+    # return utils.post_processing(img, conf_thresh, nms_thresh, output)
+    return y1, x10, x18
 

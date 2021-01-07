@@ -3,6 +3,15 @@ from torch import nn
 import torch.nn.functional as F
 from tool.torch_utils import *
 from tool.yolo_layer import YoloLayer
+from tool.utils import load_class_names, plot_boxes_cv2
+from tool.torch_utils import do_detect
+import sys
+import cv2
+# import socket
+from socket import *
+# import str_tensor
+import _thread
+import time
 
 
 class Mish(torch.nn.Module):
@@ -367,6 +376,37 @@ class Yolov4Head(nn.Module):
                                 anchors=[12, 16, 19, 36, 40, 28, 36, 75, 76, 55, 72, 146, 142, 110, 192, 243, 459, 401],
                                 num_anchors=9, stride=32)
 
+    def before_yolo1(self, input1, input2, input3):
+        x1 = self.conv1(input1)
+        x2 = self.conv2(x1)
+
+        x3 = self.conv3(input1)
+        # R -1 -16
+        x3 = torch.cat([x3, input2], dim=1)
+        x4 = self.conv4(x3)
+        x5 = self.conv5(x4)
+        x6 = self.conv6(x5)
+        x7 = self.conv7(x6)
+        x8 = self.conv8(x7)
+        x9 = self.conv9(x8)
+        x10 = self.conv10(x9)
+
+        # R -4
+        x11 = self.conv11(x8)
+        # R -1 -37
+        x11 = torch.cat([x11, input3], dim=1)
+
+        x12 = self.conv12(x11)
+        x13 = self.conv13(x12)
+        x14 = self.conv14(x13)
+        x15 = self.conv15(x14)
+        x16 = self.conv16(x15)
+        x17 = self.conv17(x16)
+        x18 = self.conv18(x17)
+        y1 = self.yolo1(x2)
+        # y2 = self.yolo2(x10)
+        return y1, x10, x18
+
     def forward(self, input1, input2, input3):
         x1 = self.conv1(input1)
         x2 = self.conv2(x1)
@@ -394,14 +434,16 @@ class Yolov4Head(nn.Module):
         x16 = self.conv16(x15)
         x17 = self.conv17(x16)
         x18 = self.conv18(x17)
-        
+        # y1 = self.yolo1(x2)
+        # y2 = self.yolo2(x10)
+
         if self.inference:
             y1 = self.yolo1(x2)
             y2 = self.yolo2(x10)
             y3 = self.yolo3(x18)
 
             return get_region_boxes([y1, y2, y3])
-        
+
         else:
             return [x2, x10, x18]
 
@@ -449,27 +491,67 @@ class Yolov4(nn.Module):
         return output
 
 
+def send_from(arr, dest):
+    view = memoryview(arr).cast('B')
+    while len(view):
+        nsent = dest.send(view)
+        view = view[nsent:]
+
+def recv_into(arr, source):
+    view = memoryview(arr).cast('B')
+    while len(view):
+        nrecv = source.recv_into(view)
+        view = view[nrecv:]
+
+
+import sys
+import tty
+import termios
+
+def readchar():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(sys.stdin.fileno())
+        ch = sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
+
+def readkey(getchar_fn=None):
+    getchar = getchar_fn or readchar
+    c1 = getchar()
+    if ord(c1) != 0x1b:
+        return c1
+    c2 = getchar()
+    if ord(c2) != 0x5b:
+        return c1
+    c3 = getchar()
+    return chr(0x10 + ord(c3) - 65)
+
+
+FLAG = True
+def key_check(c,c1,s):
+    global FLAG
+    while FLAG:
+        key=readkey()
+        if key == 'q':
+            global FLAG
+            FLAG=False
+            c.close()
+            c1.close()
+            s.close()
+
+
 if __name__ == "__main__":
-    import sys
-    import cv2
 
     namesfile = None
-    if len(sys.argv) == 6:
-        n_classes = int(sys.argv[1])
-        weightfile = sys.argv[2]
-        imgfile = sys.argv[3]
-        height = int(sys.argv[4])
-        width = int(sys.argv[5])
-    elif len(sys.argv) == 7:
-        n_classes = int(sys.argv[1])
-        weightfile = sys.argv[2]
-        imgfile = sys.argv[3]
-        height = sys.argv[4]
-        width = int(sys.argv[5])
-        namesfile = int(sys.argv[6])
-    else:
-        print('Usage: ')
-        print('  python models.py num_classes weightfile imgfile namefile')
+    n_classes = 80
+    weightfile = 'yolov4.pth'
+    imgfile = ''
+    height = 608
+    width= 608
+
 
     model = Yolov4(yolov4conv137weight=None, n_classes=n_classes, inference=True)
 
@@ -480,30 +562,36 @@ if __name__ == "__main__":
     if use_cuda:
         model.cuda()
 
-    img = cv2.imread(imgfile)
+    # img = cv2.imread(imgfile)
+    ##############################################################################################
+    s = socket(AF_INET, SOCK_STREAM)
+    s.bind(('', 25001))
+    s.listen(1)
+    c1, a = s.accept()
 
-    # Inference input size is 416*416 does not mean training size is the same
-    # Training size could be 608*608 or even other sizes
-    # Optional inference sizes:
-    #   Hight in {320, 416, 512, 608, ... 320 + 96 * n}
-    #   Width in {320, 416, 512, 608, ... 320 + 96 * m}
-    sized = cv2.resize(img, (width, height))
-    sized = cv2.cvtColor(sized, cv2.COLOR_BGR2RGB)
+    c = socket(AF_INET, SOCK_STREAM)
+    c.connect(('localhost', 25000))
 
-    from tool.utils import load_class_names, plot_boxes_cv2
-    from tool.torch_utils import do_detect
 
-    for i in range(2):  # This 'for' loop is for speed check
-                        # Because the first iteration is usually longer
-        boxes = do_detect(model, sized, 0.4, 0.6, use_cuda)
+    _thread.start_new_thread(key_check,(c,c1,s))
 
-    if namesfile == None:
-        if n_classes == 20:
-            namesfile = 'data/voc.names'
-        elif n_classes == 80:
-            namesfile = 'data/coco.names'
-        else:
-            print("please give namefile")
+    while(FLAG):
+        img=np.zeros(shape=(480,640,3),dtype=float)
+        recv_into(img, c)######################################################################
+        sized = cv2.resize(img, (width, height))
+        sized = cv2.cvtColor(sized, cv2.COLOR_BGR2RGB)
+        y1, x10, x18 = do_detect(model, sized, 0.4, 0.6, use_cuda)
 
-    class_names = load_class_names(namesfile)
-    plot_boxes_cv2(img, boxes[0], 'predictions.jpg', class_names)
+        y1[0], y1[1], x10, x18 = y1[0].cpu().numpy(), y1[1].cpu().numpy(), x10.cpu().numpy(), x18.cpu().numpy()
+        # c1.send('y1'.encode())
+        send_from(y1[0], c1)
+        send_from(y1[1], c1)
+        # c1.send('y2'.encode())
+        send_from(x10, c1)
+        # c1.send('x18'.encode())
+        send_from(x18, c1)
+    # print(y1,y2,x18)
+    # c.close()
+    # c1.close()
+    # s.close()
+

@@ -3,6 +3,10 @@ from torch import nn
 import torch.nn.functional as F
 from tool.torch_utils import *
 from tool.yolo_layer import YoloLayer
+from tool.utils import load_class_names, plot_boxes_cv2
+from tool.torch_utils import do_detect
+from socket import *
+# import cv2
 
 
 class Mish(torch.nn.Module):
@@ -449,27 +453,67 @@ class Yolov4(nn.Module):
         return output
 
 
-if __name__ == "__main__":
-    import sys
-    import cv2
+def send_from(arr, dest):
+    view = memoryview(arr).cast('B')
+    while len(view):
+        nsent = dest.send(view)
+        view = view[nsent:]
 
-    namesfile = None
-    if len(sys.argv) == 6:
-        n_classes = int(sys.argv[1])
-        weightfile = sys.argv[2]
-        imgfile = sys.argv[3]
-        height = int(sys.argv[4])
-        width = int(sys.argv[5])
-    elif len(sys.argv) == 7:
-        n_classes = int(sys.argv[1])
-        weightfile = sys.argv[2]
-        imgfile = sys.argv[3]
-        height = sys.argv[4]
-        width = int(sys.argv[5])
-        namesfile = int(sys.argv[6])
-    else:
-        print('Usage: ')
-        print('  python models.py num_classes weightfile imgfile namefile')
+def recv_into(arr, source):
+    view = memoryview(arr).cast('B')
+    while len(view):
+        nrecv = source.recv_into(view)
+        view = view[nrecv:]
+
+
+import sys
+import tty
+import termios
+import _thread
+
+def readchar():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(sys.stdin.fileno())
+        ch = sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
+
+
+def readkey(getchar_fn=None):
+    getchar = getchar_fn or readchar
+    c1 = getchar()
+    if ord(c1) != 0x1b:
+        return c1
+    c2 = getchar()
+    if ord(c2) != 0x5b:
+        return c1
+    c3 = getchar()
+    return chr(0x10 + ord(c3) - 65)
+
+
+FLAG = True
+def key_check(c,c1,c2,s):
+    global FLAG
+    while FLAG:
+        key=readkey()
+        if key == 'q':
+            global FLAG
+            FLAG=False
+            c.close()
+            c1.close()
+            c2.close()
+            s.close()
+
+
+if __name__ == "__main__":
+    n_classes = 80
+    weightfile = 'yolov4.pth'
+    imgfile = ''
+    height = 608
+    width = 608
 
     model = Yolov4(yolov4conv137weight=None, n_classes=n_classes, inference=True)
 
@@ -480,30 +524,37 @@ if __name__ == "__main__":
     if use_cuda:
         model.cuda()
 
-    img = cv2.imread(imgfile)
+    # img = cv2.imread(imgfile)
+    ##############################################################################################
+    s = socket(AF_INET, SOCK_STREAM)
+    s.bind(('', 25002))
+    s.listen(1)
+    c1, a = s.accept()
 
-    # Inference input size is 416*416 does not mean training size is the same
-    # Training size could be 608*608 or even other sizes
-    # Optional inference sizes:
-    #   Hight in {320, 416, 512, 608, ... 320 + 96 * n}
-    #   Width in {320, 416, 512, 608, ... 320 + 96 * m}
-    sized = cv2.resize(img, (width, height))
-    sized = cv2.cvtColor(sized, cv2.COLOR_BGR2RGB)
-
-    from tool.utils import load_class_names, plot_boxes_cv2
-    from tool.torch_utils import do_detect
-
-    for i in range(2):  # This 'for' loop is for speed check
-                        # Because the first iteration is usually longer
-        boxes = do_detect(model, sized, 0.4, 0.6, use_cuda)
-
-    if namesfile == None:
-        if n_classes == 20:
-            namesfile = 'data/voc.names'
-        elif n_classes == 80:
-            namesfile = 'data/coco.names'
-        else:
-            print("please give namefile")
-
+    c = socket(AF_INET, SOCK_STREAM)
+    c.connect(('localhost', 25001))
+    c_2 = socket(AF_INET, SOCK_STREAM)
+    c_2.connect(('localhost', 25000))
+    namesfile = 'data/coco.names'
     class_names = load_class_names(namesfile)
-    plot_boxes_cv2(img, boxes[0], 'predictions.jpg', class_names)
+    _thread.start_new_thread(key_check, (c, c1, c_2, s))
+    while (1):
+        # y1, y2, x18 = do_detect(model, sized, 0.4, 0.6, use_cuda)
+        img = np.zeros(shape=(480,640,3))
+        recv_into(img, c_2)
+        y11 = np.zeros(shape=(1,17328,1,4))
+        recv_into(y11,c)
+        y12 = np.zeros(shape=(1,17328,80))
+        recv_into(y12,c)
+        x10=np.zeros(shape=(1,255,38,38))
+        recv_into(x10,c)
+        x18=np.zeros(shape=(1, 255, 19, 19))
+        recv_into(x18,c)
+        boxes = do_detect(model, [(y11,y12),x10,x18], img, 0.4, 0.6, use_cuda)
+        send_from(img, c1)
+        send_from(boxes,c1)
+        # class_names = load_class_names(namesfile)
+        # plot_boxes_cv2(img[0], boxes[0], 'predictions.jpg', class_names)
+    # c1.close()
+
+
