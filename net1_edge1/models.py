@@ -543,6 +543,7 @@ FLAG = True
 #             s.close()
 
 
+from trans_edge1 import trans_thread
 if __name__ == "__main__":
 
     namesfile = None
@@ -574,24 +575,24 @@ if __name__ == "__main__":
 
 
     # _thread.start_new_thread(key_check,(c,c1,s))
+    trans = trans_thread()
+    trans.start()
 
     while(FLAG):
-        img=np.zeros(shape=(480,640,3),dtype=np.uint8)
-        recv_into(img, c)######################################################################
+        if trans.inQue.empty():
+            continue
+        trans.lock.acquire()
+        img=trans.inQue.get()
+        trans.lock.release()
         # print(img.shape)
-        cv2.imshow("11", img)
+        # cv2.imshow("11", img)
         sized = cv2.resize(img, (width, height))
         sized = cv2.cvtColor(sized, cv2.COLOR_BGR2RGB)
         y1, x10, x18 = do_detect(model, sized, 0.4, 0.6, use_cuda)
 
         y11, y12, x10, x18 = y1[0].detach().cpu().numpy(), y1[1].detach().cpu().numpy(), x10.detach().cpu().numpy(), x18.detach().cpu().numpy()
-        # c1.send('y1'.encode())
-        send_from(y11, c1)
-        send_from(y12, c1)
-        # c1.send('y2'.encode())
-        send_from(x10, c1)
-        # c1.send('x18'.encode())
-        send_from(x18, c1)
+        if not trans.outQue.full():
+            trans.fillData((y11,y12,x10,x18))
     # print(y1,y2,x18)
     # c.close()
     # c1.close()

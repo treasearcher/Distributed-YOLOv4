@@ -44,28 +44,15 @@ def recv_into(arr, source):
 #     c3 = getchar()
 #     return chr(0x10 + ord(c3) - 65)
 
-
 FLAG = True
-update = False
+fps = 0
+tmp_fps = 0
 def time_check():
+    global fps, tmp_fps
     while 1:
-        global update
-        update=True
         time.sleep(1)
-        update=False
-        # print(1)
-# def key_check(c):
-#     global FLAG
-#     while FLAG:
-#         key=readkey()
-#         if key == 'q':
-#             global FLAG
-#             FLAG=False
-#             c.close()
-#         global update
-#         update = True
-#         time.sleep(1)
-#         update = False
+        tmp_fps=fps
+        fps=0
 
 
 import cv2
@@ -74,7 +61,7 @@ if __name__ == "__main__":
 
     namesfile = 'data/coco.names'
     c = socket(AF_INET, SOCK_STREAM)
-    c.connect(('localhost', 25002))
+    c.connect(('192.168.1.103', 25002))
 
     class_names = load_class_names(namesfile)
     _thread.start_new_thread(time_check, ())
@@ -89,9 +76,5 @@ if __name__ == "__main__":
         # frame=plot_boxes_cv2(img, boxes[0], tmp_fps, class_names)
         img = cv2.putText(img, 'FPS: {}'.format(tmp_fps), (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 0), 2)
         cv2.imshow("capture", img)
-        # print(img)
-        if update:
-            tmp_fps = fps
-            fps = 0
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
