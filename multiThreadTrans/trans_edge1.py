@@ -25,7 +25,7 @@ def recv_into(arr, source):
 class trans_thread(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
-        self.lock = threading.Lock
+        self.lock = threading.Lock()
         self.inQue = queue.Queue(qsize)
         self.outQue = queue.Queue(qsize)
         self.client = socket(AF_INET, SOCK_STREAM)
@@ -56,7 +56,7 @@ class trans_thread(threading.Thread):
                 self.lock.acquire()
                 out_tuple=self.outQue.get()
                 self.lock.release()
-                for i in range(out_tuple):
+                for i in range(len(out_tuple)):
                     send_from(out_tuple[i], self.a_clinet)
 
     def run(self):

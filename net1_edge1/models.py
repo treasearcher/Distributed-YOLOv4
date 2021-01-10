@@ -565,13 +565,6 @@ if __name__ == "__main__":
 
     # img = cv2.imread(imgfile)
     ##############################################################################################
-    s = socket(AF_INET, SOCK_STREAM)
-    s.bind(('', 25001))
-    s.listen(1)
-    c1, a = s.accept()
-
-    c = socket(AF_INET, SOCK_STREAM)
-    c.connect(('localhost', 25000))
 
 
     # _thread.start_new_thread(key_check,(c,c1,s))

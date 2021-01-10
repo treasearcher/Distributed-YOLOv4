@@ -3,6 +3,7 @@ import queue
 from socket import *
 import numpy as np
 import _thread
+import time
 
 
 qsize=5
@@ -25,14 +26,14 @@ def recv_into(arr, source):
 class trans_thread(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
-        self.lock = threading.Lock
+        self.lock = threading.Lock()
         self.inQue = queue.Queue(qsize)
         self.outQue = queue.Queue(qsize)
         self.client = socket(AF_INET, SOCK_STREAM)
         self.server = socket(AF_INET, SOCK_STREAM)
         self.server.bind(('', 25001))
         self.server.listen(1)
-        self.a_clinet = self.server.accept()
+        self.a_clinet, _ = self.server.accept()
         self.client.connect(('localhost', 25000))
 
     def fillData(self, data):
@@ -49,6 +50,8 @@ class trans_thread(threading.Thread):
                 self.lock.acquire()
                 self.inQue.put(arr)
                 self.lock.release()
+            else:
+                time.sleep(0.01)
 
     def send(self):
         while 1:
@@ -56,8 +59,10 @@ class trans_thread(threading.Thread):
                 self.lock.acquire()
                 out_tuple=self.outQue.get()
                 self.lock.release()
-                for i in range(out_tuple):
+                for i in range(len(out_tuple)):
                     send_from(out_tuple[i], self.a_clinet)
+            else:
+                time.sleep(0.01)
 
     def run(self):
         _thread.start_new_thread(self.recv, ())

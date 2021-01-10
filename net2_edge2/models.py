@@ -527,47 +527,20 @@ if __name__ == "__main__":
 
     # img = cv2.imread(imgfile)
     ##############################################################################################
-    s = socket(AF_INET, SOCK_STREAM)
-    s.bind(('', 25002))
-    s.listen(1)
-    c1, a = s.accept()
-
-    c = socket(AF_INET, SOCK_STREAM)
-    c.connect(('192.168.1.101', 25001))
-    c_2 = socket(AF_INET, SOCK_STREAM)
-    c_2.connect(('192.168.1.101', 25000))
     namesfile = 'data/coco.names'
     class_names = load_class_names(namesfile)
-    # _thread.start_new_thread(key_check, (c, c1, c_2, s))
+    trans = trans_thread()
+    trans.start()
     while (1):
-        # y1, y2, x18 = do_detect(model, sized, 0.4, 0.6, use_cuda)
-        img = np.zeros(shape=(480,640,3), dtype=np.uint8)
-        recv_into(img, c_2)
-        y11 = np.zeros(shape=(1,17328,1,4), dtype=np.float32)
-        recv_into(y11,c)
-        y12 = np.zeros(shape=(1,17328,80), dtype=np.float32)
-        recv_into(y12,c)
-        x10=np.zeros(shape=(1,255,38,38), dtype=np.float32)
-        recv_into(x10,c)
-        x18=np.zeros(shape=(1, 255, 19, 19), dtype=np.float32)
-        recv_into(x18,c)
-        boxes = do_detect(model, [(y11,y12),x10,x18], img, 0.4, 0.6, use_cuda)
-        # boxes = np.array(boxes, dtype=np.uint8)
-        # send_from(img, c1)
-        # send_from(boxes,c1)
-        class_names = load_class_names(namesfile)
+        if trans.inQue.empty() or trans.img.empty():
+            continue
+        trans.lock.acquire()
+        mid = trans.inQue.get()
+        img = trans.img.get()
+        trans.lock.release()
+        boxes = do_detect(model, [(mid[0],mid[1]),mid[2],mid[3]], img, 0.4, 0.6, use_cuda)
         frame = plot_boxes_cv2(img, boxes[0], 'predictions.jpg', class_names)
-        # cv2.imshow("capture", img)
-        # print(frame)
-        send_from(frame, c1)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-        # print(img)
+        trans.fillData(frame)
 
-    cv2.destroyAllWindows()
-    c.close()
-    c_2.close()
-    c1.close()
-    s.close()
 
 
